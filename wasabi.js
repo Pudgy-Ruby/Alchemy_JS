@@ -2,10 +2,13 @@
 import { Alchemy, Network, fromHex } from "alchemy-sdk";
 import { PoolABI } from './PoolABI.js';
 import Web3 from "web3"
+import API from "api"
 
 const main = async () => {
     let optionId;
     let poolAddress;
+    let nftAddress;
+    let tokenId;
 
     const config = {
         apiKey: "wHC4H7cdGZbbAP-XDqeo6MNcyL0K3V3R",
@@ -41,30 +44,51 @@ const main = async () => {
         (txn) => fromHex(txn.erc721TokenId) === nftId && txn.to === '0x0000000000000000000000000000000000000000'
     );
 
-    let transactionHash = exercises[0].hash;
-    console.log(transactionHash);
+    if (exercises.length > 0) {
+
+        let blockNum = exercises[0].blockNum;
+        let transactionHash = exercises[0].hash;
+        console.log(transactionHash);
+    
+        await web3.eth.getTransaction(transactionHash, (error, transaction) => {
+            if (error) {
+                console.error('Error retrieving transaction:', error);
+                return;
+            }
+            let inputData = transaction.input.slice(10);
+            const decodedInput = web3.eth.abi.decodeParameters(['uint256','uint256'], inputData);
+    
+            optionId = decodedInput[0];
+            tokenId = decodedInput[1];
+    
+            poolAddress = transaction.to;
+        });
+    
+        const contractInstance = new web3.eth.Contract(
+            PoolABI,
+            poolAddress
+        );
+    
+        nftAddress = await contractInstance.methods.getNftAddress().call();
+        const optionData = await contractInstance.methods.getOptionData(optionId).call();
+        console.log("optionData: ",optionData);
+        console.log("`${nftAddress}:${tokenId}`",`${nftAddress}:${tokenId}`);
 
 
-    await web3.eth.getTransaction(transactionHash, (error, transaction) => {
-        if (error) {
-            console.error('Error retrieving transaction:', error);
-            return;
-        }
-        let inputData = transaction.input.slice(10);
-        const decodedInput = web3.eth.abi.decodeParameters(['uint256','uint256'], inputData);
+        const sdk = API('@reservoirprotocol/v3.0#36vtrdr1z8lhhl0zsv');
 
-        optionId = decodedInput[0];
-
-        poolAddress = transaction.to;
-    });
-
-    const contractInstance = new web3.eth.Contract(
-        PoolABI,
-        poolAddress
-    );
-
-    const optionData = await contractInstance.methods.getOptionData(optionId).call();
-    console.log("optionData",optionData);
+        sdk.auth('29933ebc-4aa9-5b0f-a55c-8568f8668120');
+        sdk.server('https://api.reservoir.tools');
+        await sdk.getTokensTokenActivityV5({
+          sortBy: 'eventTimestamp',
+          types: ['sale', 'mint'],
+          token: `${nftAddress}:${tokenId}`,
+          accept: '*/*'
+        })
+          .then(({ data }) => console.log(data.activities[0].price))
+          .catch(err => console.log(err));
+        
+    }
 }
 
 const runMain = async () => {
