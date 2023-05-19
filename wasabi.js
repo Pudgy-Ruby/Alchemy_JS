@@ -9,6 +9,7 @@ const main = async () => {
     let poolAddress;
     let nftAddress;
     let tokenId;
+    let fromBlock;
 
     const config = {
         apiKey: "wHC4H7cdGZbbAP-XDqeo6MNcyL0K3V3R",
@@ -21,7 +22,7 @@ const main = async () => {
     const providerURL = 'https://mainnet.infura.io/v3/eac2c2abc23b40629f211fa251f3d813';  // Infura Project ID
     const web3 = new Web3(providerURL);
 
-    // Contract address
+    // Option address
     const address = ["0xfc68f2130e094c95b6c4f5494158cbeb172e18a0"];
     // Get all NFTs
     const response = await alchemy.core.getAssetTransfers({
@@ -46,10 +47,11 @@ const main = async () => {
 
     if (exercises.length > 0) {
 
-        let blockNum = exercises[0].blockNum;
+        let toBlock = exercises[0].blockNum;
         let transactionHash = exercises[0].hash;
         console.log(transactionHash);
     
+        let txHash;
         await web3.eth.getTransaction(transactionHash, (error, transaction) => {
             if (error) {
                 console.error('Error retrieving transaction:', error);
@@ -85,9 +87,30 @@ const main = async () => {
           token: `${nftAddress}:${tokenId}`,
           accept: '*/*'
         })
-          .then(({ data }) => console.log(data.activities[0].price))
-          .catch(err => console.log(err));
-        
+        .then(({ data }) => {
+          txHash = data.activities[0].txHash;
+          console.log(data.activities[0].price);
+        })
+        .catch(err => console.log(err));
+     
+        await web3.eth.getTransaction(txHash, async (error, transaction) => {
+            if (error) {
+                console.error('Error retrieving transaction:', error);
+                return;
+            }
+
+            fromBlock = transaction.blockNumber;
+            console.log("fromBlock", fromBlock);            
+        });
+
+        const response = await alchemy.core.getAssetTransfers({
+            fromBlock: fromBlock,
+            contractAddresses: address,
+            category: ["erc721"],
+            excludeZeroValue: false,
+        });
+
+        console.log("nTransfers: ", response.transfers.length);
     }
 }
 
